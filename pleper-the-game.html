@@ -1,0 +1,711 @@
+<!DOCTYPE html><html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PLEPER the Game</title>
+  <style>
+    body {
+      margin: 0;
+      background-color: black;
+      color: white;
+      font-family: Arial, sans-serif;
+    }
+    .pantalla-inicio, .pantalla-juego {
+      display: none;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      height: 100vh;
+    }
+    .pantalla-inicio.active, .pantalla-juego.active {
+      display: flex;
+    }
+    h1 {
+      font-size: 2.5em;
+      margin-bottom: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 10px;
+      font-size: 1em;
+      cursor: pointer;
+    }
+    .tablero {
+      display: grid;
+      gap: 5px;
+    }
+    .celda {
+      width: 60px;
+      height: 60px;
+      background-color: #222;
+      border: 1px solid #555;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5em;
+    }
+    .iluminada {
+      background-color: limegreen !important;
+    }
+    .falsa {
+      background-color: crimson;
+    }
+    .menu-ajustes {
+      background-color: #111;
+      border: 2px solid white;
+      padding: 20px;
+      margin-top: 20px;
+    }
+    .menu-ajustes label {
+      display: block;
+      margin-top: 10px;
+    }
+    #timer {
+      position: absolute;
+      top: 10px;
+      right: 20px;
+      font-size: 1.2em;
+    }
+
+
+
+    .mensaje-flotante {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.9);
+  background-color: #111;
+  border: 2px solid lime;
+  color: white;
+  padding: 30px;
+  font-size: 1.5em;
+  z-index: 999;
+  text-align: center;
+  border-radius: 20px;
+  box-shadow: 0 0 20px lime;
+  animation: aparecer 0.5s ease-out forwards;
+}
+
+#mensajeDerrota {
+  border-color: crimson;
+  box-shadow: 0 0 20px crimson;
+}
+
+.mensaje-flotante button {
+  margin-top: 20px;
+  padding: 10px 20px;
+  font-size: 1em;
+  background-color: white;
+  color: black;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+@keyframes aparecer {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+
+
+
+
+#fondoConstelaciones {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent; /* o transparente si ya tenés otro fondo */
+  z-index: -1; /* Asegura que el canvas esté detrás del contenido */
+}
+
+#pantallaInicio {
+  position: relative;
+  z-index: 1; /* Asegura que el contenido esté encima del canvas */
+}
+
+
+
+
+
+  </style>
+</head>
+<body>
+  <div class="pantalla-inicio active" id="pantallaInicio">
+    <canvas id="fondoConstelaciones"></canvas>
+    <h1>PLEPER the Game</h1>
+    <button onclick="iniciarJuego()">Jugar</button>
+    <button onclick="mostrarAjustes()">Ajustes</button>
+    <button onclick="alternarSonido()">Sonido: <span id="estadoSonido">🔊</span></button>
+    <div class="menu-ajustes" id="menuAjustes" style="display:none;">
+      <label>Dificultad:
+        <select id="dificultad">
+          <option value="facil">Fácil</option>
+          <option value="normal" selected>Normal</option>
+          <option value="dificil">Difícil</option>
+          <option value="imposible">Imposible</option>
+        </select>
+      </label>
+    </div>
+    <div style="margin-top: 20px;">
+      <h3>Récords:</h3>
+      <p>Fácil: <span id="record-facil">-</span> seg</p>
+      <p>Normal: <span id="record-normal">-</span> seg</p>
+      <p>Difícil: <span id="record-dificil">-</span> seg</p>
+      <p>Imposible: <span id="record-imposible">-</span> seg</p>
+    </div>
+  </div>
+
+  <div class="pantalla-juego" id="pantallaJuego">
+    <div id="timer">Tiempo: <span id="tiempoRestante">01:00</span></div>
+    <div class="tablero" id="tablero"></div>
+  </div>
+
+  <audio id="sonidoOK" src="https://cdn.pixabay.com/audio/2022/03/15/audio_8be0a46b2b.mp3"></audio> 
+  <audio id="sonidoError" src="https://cdn.pixabay.com/audio/2022/03/15/audio_e35b9a7b7a.mp3"></audio> 
+  <audio id="sonidoVictoria" src="https://cdn.pixabay.com/audio/2022/03/15/audio_c1d6c6ebd6.mp3"></audio>
+
+
+
+  <!-- Mensaje de Victoria -->
+<div id="mensajeVictoria" class="mensaje-flotante" style="display:none;">
+  🎉 ¡Felicidades, completaste la fase! 🎉<br>
+  <button onclick="continuarFase()">👉 Continuar</button>
+  <button onclick="volverAlMenu()">🏠 Volver al Menú</button>
+</div>
+
+<!-- Mensaje de Derrota -->
+<div id="mensajeDerrota" class="mensaje-flotante" style="display:none;">
+  ❌ ¡Pisaste una baldosa falsa o se acabó el tiempo! ❌<br>
+  <button onclick="reintentarFase()">🔁 Reintentar</button>
+  <button onclick="volverAlMenu()">🏠 Volver al Menú</button>
+</div>
+
+<style>
+  .mensaje-flotante {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #111;
+    border: 2px solid limegreen;
+    padding: 30px;
+    font-size: 1.3em;
+    text-align: center;
+    z-index: 999;
+    box-shadow: 0 0 15px limegreen;
+    border-radius: 12px;
+  }
+
+  .mensaje-flotante button {
+    margin-top: 15px;
+    margin-inline: 10px;
+    padding: 10px 20px;
+    font-size: 1em;
+    cursor: pointer;
+  }
+</style>
+
+
+
+
+  <script>
+
+    let juegoActivo = true;
+
+
+
+
+    let ancho, alto, dificultad, fase = 1;
+    function obtenerTiempoMaximo() {
+    switch (dificultad) {
+    case "facil":
+    case "normal":
+    case "dificil":
+      return 30 * 1000; // 30 segundos
+    case "imposible":
+    default:
+      return 60 * 1000; // 1 minuto
+  }
+}
+    let posX = 0, posY = 0;
+    let baldosas = [];
+    let inicioTiempo, intervaloTiempo, intervaloCambios, intervaloActualizacion;
+    let sonidoActivado = true;
+
+    const pantallaInicio = document.getElementById("pantallaInicio");
+    const pantallaJuego = document.getElementById("pantallaJuego");
+    const tablero = document.getElementById("tablero");
+    const estadoSonido = document.getElementById("estadoSonido");
+    const tiempoRestante = document.getElementById("tiempoRestante");
+
+    const sonidoOK = document.getElementById("sonidoOK");
+    const sonidoError = document.getElementById("sonidoError");
+    const sonidoVictoria = document.getElementById("sonidoVictoria");
+
+    const records = {
+      facil: document.getElementById("record-facil"),
+      normal: document.getElementById("record-normal"),
+      dificil: document.getElementById("record-dificil"),
+      imposible: document.getElementById("record-imposible")
+    };
+
+    function configurarDificultad(nombre) {
+      dificultad = nombre;
+      switch(nombre) {
+        case "facil": ancho = alto = 5; break;
+        case "normal": ancho = alto = 7; break;
+        case "dificil": ancho = alto = 10; break;
+        case "imposible": ancho = alto = 10; break;
+      }
+    }
+
+    function crearTablero() {
+      baldosas = [];
+      tablero.innerHTML = "";
+      tablero.style.gridTemplateColumns = `repeat(${ancho}, 60px)`;
+      for (let y = 0; y < alto; y++) {
+        let fila = [];
+        for (let x = 0; x < ancho; x++) {
+          const div = document.createElement("div");
+          div.className = "celda";
+          tablero.appendChild(div);
+          fila.push({ div, iluminada: false, falsa: false });
+        }
+        baldosas.push(fila);
+      }
+    }
+
+function colocarFalsas() {
+  baldosas.flat().forEach(c => {
+    c.div.classList.remove("falsa");
+    c.falsa = false;
+  });
+
+  // Aumentar la cantidad de falsas según la fase (máximo 35%)
+  let porcentaje = Math.min(0.10 + fase * 0.02, 0.35);
+  let cantidad = Math.floor(ancho * alto * porcentaje);
+
+  let intentos = 0;
+  do {
+    intentos++;
+    baldosas.flat().forEach(c => {
+      c.div.classList.remove("falsa");
+      c.falsa = false;
+    });
+
+    let colocadas = 0;
+    while (colocadas < cantidad) {
+      let x = Math.floor(Math.random() * ancho);
+      let y = Math.floor(Math.random() * alto);
+      if ((x === 0 && y === 0) || baldosas[y][x].falsa) continue;
+
+      const celda = baldosas[y][x];
+      celda.falsa = true;
+
+      if (celda.iluminada) {
+        celda.div.classList.add("falsa");
+        // Mostrar roja por 5 segundos si ya estaba iluminada
+        setTimeout(() => {
+          if (celda.iluminada) celda.div.classList.remove("falsa");
+        }, 5000);
+      } else {
+        celda.div.classList.add("falsa");
+      }
+
+      colocadas++;
+    }
+  } while (!verificarAccesibilidad() && intentos < 10);
+
+  function verificarAccesibilidad() {
+    const visitado = Array.from({ length: alto }, () => Array(ancho).fill(false));
+
+    function dfs(x, y) {
+      if (x < 0 || y < 0 || x >= ancho || y >= alto) return;
+      if (visitado[y][x] || baldosas[y][x].falsa) return;
+      visitado[y][x] = true;
+      dfs(x + 1, y);
+      dfs(x - 1, y);
+      dfs(x, y + 1);
+      dfs(x, y - 1);
+    }
+
+    dfs(0, 0); // Empezar desde la esquina
+
+    // Todas las celdas no falsas deben ser accesibles
+    return baldosas.flat().every((c, i) => {
+      const x = i % ancho;
+      const y = Math.floor(i / ancho);
+      return c.falsa || visitado[y][x];
+    });
+  }
+}
+ 
+
+    function mover(dx, dy) {
+      if (!juegoActivo) return; // Evita mover si el juego terminó
+      const nuevoX = posX + dx;
+      const nuevoY = posY + dy;
+      if (nuevoX < 0 || nuevoY < 0 || nuevoX >= ancho || nuevoY >= alto) return;
+      posX = nuevoX;
+      posY = nuevoY;
+      dibujar();
+      verificarVictoria();
+    }
+
+    function iluminar(x, y) {
+      const celda = baldosas[y][x];
+      if (!celda.iluminada) {
+        celda.div.classList.add("iluminada");
+        celda.iluminada = true;
+      }
+    }
+
+    function dibujar() {
+      baldosas.flat().forEach(c => c.div.innerHTML = "");
+      const celda = baldosas[posY][posX];
+      celda.div.innerHTML = "🕴️";
+      if (celda.falsa && !celda.iluminada) {
+      juegoActivo = false; // Evita mover si el juego terminó
+      reproducir(sonidoError);
+      clearInterval(intervaloTiempo);
+      clearInterval(intervaloCambios);
+      clearInterval(intervaloActualizacion);
+      document.getElementById("mensajeDerrota").style.display = "block";
+      return;
+      }
+      reproducir(sonidoOK);
+      iluminar(posX, posY);
+    }
+
+    function verificarVictoria() {
+  const todasIluminadas = baldosas.flat().every(c => c.iluminada || c.falsa);
+  if (todasIluminadas) {
+    juegoActivo = false; // Evita mover si el juego terminó
+    clearInterval(intervaloTiempo);
+    clearInterval(intervaloCambios);
+    clearInterval(intervaloActualizacion);
+
+    const tiempoFinal = ((Date.now() - inicioTiempo) / 1000).toFixed(2);
+    reproducir(sonidoVictoria);
+    actualizarRecord(dificultad, tiempoFinal);
+
+    document.getElementById("mensajeVictoria").style.display = "block";
+    fase++;
+  }
+}
+
+    // let fase = 1; // Eliminado para evitar redeclaración
+
+function iniciarJuego() {
+  configurarDificultad(document.getElementById("dificultad").value);
+  // fase = 1; <-- sacalo de acá
+  pantallaInicio.classList.remove("active");
+  pantallaJuego.classList.add("active");
+  iniciarFase();
+}
+
+    function iniciarFase() {
+      juegoActivo = true; // 🟢 Vuelve a estar activo para la próxima partida
+      crearTablero();
+      colocarFalsas();
+      posX = 0; posY = 0;
+      baldosas.flat().forEach(c => {
+        c.iluminada = false;
+        c.div.classList.remove("iluminada");
+      });
+      dibujar();
+      inicioTiempo = Date.now();
+      tiempoMaximo = obtenerTiempoMaximo();
+      clearInterval(intervaloTiempo);
+      clearInterval(intervaloActualizacion);
+      intervaloTiempo = setTimeout(() => {
+      clearInterval(intervaloActualizacion);
+      document.getElementById("mensajeDerrota").style.display = "block";
+      }, tiempoMaximo);
+      intervaloActualizacion = setInterval(actualizarTiempoRestante, 250);
+      clearInterval(intervaloCambios);
+      if (dificultad === "imposible") {
+        intervaloCambios = setInterval(colocarFalsas, 5000);
+      }
+    }
+
+    function actualizarTiempoRestante() {
+      const tiempoMs = Math.max(0, tiempoMaximo - (Date.now() - inicioTiempo));
+      const segundos = Math.floor(tiempoMs / 1000);
+      const minutos = Math.floor(segundos / 60);
+      const restoSegundos = segundos % 60;
+
+      // Formato MM:SS
+      tiempoRestante.textContent = `${minutos}:${restoSegundos.toString().padStart(2, '0')}`;
+
+      // Rojo si quedan 10s o menos
+      tiempoRestante.style.color = (segundos <= 10) ? "red" : "white";
+    }
+
+    function actualizarRecord(dif, tiempo) {
+      const clave = `record-${dif}`;
+      const recordGuardado = localStorage.getItem(clave);
+      if (!recordGuardado || parseFloat(tiempo) < parseFloat(recordGuardado)) {
+        localStorage.setItem(clave, tiempo);
+      }
+    }
+
+    function cargarRecords() {
+      ["facil", "normal", "dificil", "imposible"].forEach(d => {
+        const t = localStorage.getItem(`record-${d}`);
+        records[d].textContent = t ? t : "-";
+      });
+    }
+
+
+
+function volverAlMenu() {
+  pantallaJuego.classList.remove("active");
+  pantallaInicio.classList.add("active");
+
+  document.getElementById("mensajeVictoria").style.display = "none";
+  document.getElementById("mensajeDerrota").style.display = "none";
+
+  clearInterval(intervaloTiempo);
+  clearInterval(intervaloCambios);
+  clearInterval(intervaloActualizacion);
+
+  juegoActivo = true; // 🟢 Vuelve a estar activo para la próxima partida
+}
+    
+
+    function mostrarAjustes() {
+      const ajustes = document.getElementById("menuAjustes");
+      ajustes.style.display = ajustes.style.display === "none" ? "block" : "none";
+    }
+
+    function alternarSonido() {
+      sonidoActivado = !sonidoActivado;
+      estadoSonido.textContent = sonidoActivado ? "🔊" : "🔇";
+    }
+
+    function reproducir(audio) {
+      if (sonidoActivado) {
+        audio.currentTime = 0;
+        audio.play();
+      }
+    }
+
+document.addEventListener("keydown", (e) => {
+  if (!juegoActivo) return; // Evita mover si el juego terminó
+
+  switch (e.key) {
+    case "ArrowUp": mover(0, -1); break;
+    case "ArrowDown": mover(0, 1); break;
+    case "ArrowLeft": mover(-1, 0); break;
+    case "ArrowRight": mover(1, 0); break;
+  }
+});
+
+    document.addEventListener("touchstart", (e) => {
+      if (!juegoActivo) return; // Evita mover si el juego terminó
+      const touchX = e.touches[0].clientX;
+      const touchY = e.touches[0].clientY;
+      const centerX = window.innerWidth / 2;
+      const centerY = window.innerHeight / 2;
+      const dx = touchX - centerX;
+      const dy = touchY - centerY;
+      if (Math.abs(dx) > Math.abs(dy)) {
+        mover(dx > 0 ? 1 : -1, 0);
+      } else {
+        mover(0, dy > 0 ? 1 : -1);
+      }
+    });
+
+
+
+
+
+
+
+
+    function mostrarMensajeVictoria() {
+      juegoActivo = false;
+  document.getElementById("mensajeVictoria").style.display = "block";
+}
+
+function cerrarMensajeVictoria() {
+  document.getElementById("mensajeVictoria").style.display = "none";
+  fase++;
+  iniciarFase();
+}
+
+function mostrarMensajeDerrota() {
+  juegoActivo = false;
+  document.getElementById("mensajeDerrota").style.display = "block";
+}
+
+    cargarRecords();
+
+
+
+
+
+
+
+
+    function reintentarFase() {
+  // Oculta mensaje de derrota
+  document.getElementById("mensajeDerrota").style.display = "none";
+
+  // Limpia todo como si empezara la fase desde cero
+  clearInterval(intervaloTiempo);
+  clearInterval(intervaloCambios);
+  clearInterval(intervaloActualizacion);
+
+  juegoActivo = true; // 🟢 Vuelve a estar activo para la próxima partida
+
+  // Vuelve a reproducir el sonido inicial si está activado
+  if (sonidoActivado) {
+    sonidoOK.currentTime = 0;
+    sonidoOK.play();
+  }
+
+  // Reinicia la fase con todo: tablero nuevo, falsas nuevas, cronómetro reiniciado
+  iniciarFase();
+}
+
+
+
+
+
+
+
+function continuarFase() {
+  document.getElementById("mensajeVictoria").style.display = "none";
+  fase++;
+  setTimeout(() => {
+    iniciarFase();
+  }, 3000); // Espera 3 segundos antes de cargar la siguiente ronda
+}
+
+function reintentarFase() {
+  document.getElementById("mensajeDerrota").style.display = "none";
+
+  clearInterval(intervaloTiempo);
+  clearInterval(intervaloCambios);
+  clearInterval(intervaloActualizacion);
+
+  if (sonidoActivado) {
+    sonidoOK.currentTime = 0;
+    sonidoOK.play();
+  }
+
+  iniciarFase();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const canvas = document.getElementById("fondoConstelaciones");
+const ctx = canvas.getContext("2d");
+let puntos = [];
+let mouse = { x: null, y: null };
+
+function ajustarCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+
+window.addEventListener("resize", ajustarCanvas);
+ajustarCanvas();
+
+for (let i = 0; i < 100; i++) {
+  puntos.push({
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height,
+    vx: (Math.random() - 0.5) * 0.5,
+    vy: (Math.random() - 0.5) * 0.5
+  });
+}
+
+canvas.addEventListener("mousemove", (e) => {
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
+});
+
+function animarFondo() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  for (let p of puntos) {
+    p.x += p.vx;
+    p.y += p.vy;
+
+    if (p.x <= 0 || p.x >= canvas.width) p.vx *= -1;
+    if (p.y <= 0 || p.y >= canvas.height) p.vy *= -1;
+
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+    ctx.fillStyle = "rgb(25, 166, 23)";
+    ctx.fill();
+  }
+
+  for (let i = 0; i < puntos.length; i++) {
+    for (let j = i + 1; j < puntos.length; j++) {
+      const a = puntos[i];
+      const b = puntos[j];
+      const dx = a.x - b.x;
+      const dy = a.y - b.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < 100) {
+        ctx.beginPath();
+        ctx.strokeStyle = "rgb(25, 166, 23)"
+        ctx.lineWidth = 0.5;
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      }
+    }
+
+    // Conexiones con el mouse
+    if (mouse.x !== null) {
+      const dx = puntos[i].x - mouse.x;
+      const dy = puntos[i].y - mouse.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < 120) {
+        ctx.beginPath();
+        ctx.strokeStyle = "rgb(25, 166, 23)"
+        ctx.lineWidth = 0.7;
+        ctx.moveTo(puntos[i].x, puntos[i].y);
+        ctx.lineTo(mouse.x, mouse.y);
+        ctx.stroke();
+      }
+    }
+  }
+
+  requestAnimationFrame(animarFondo);
+}
+
+animarFondo();
+
+
+
+
+
+
+
+
+  </script>
+</body>
+</html> 
